@@ -23,6 +23,7 @@ def deletePlayers():
     """Remove all the player records from the database."""
     db = connect()
     cursor = db.cursor()
+    # Use cascade to remove matches in which the players participated.
     cursor.execute("truncate players cascade;")
     db.commit()
     db.close()
@@ -33,6 +34,7 @@ def countPlayers():
     db = connect()
     cursor = db.cursor()
     cursor.execute("select count(*) from players;")
+    # count(*) will return only one number, so fetchone() is appropriate.
     return cursor.fetchone()[0]
     db.close()
 
@@ -46,9 +48,11 @@ def registerPlayer(name):
     Args:
       name: the player's full name (need not be unique).
     """
+    # Avoid script injection.
     name = bleach.clean(name)
     db = connect()
     cursor = db.cursor()
+    # Avoid sql injection.
     cursor.execute("insert into players (name) values (%s)", (name, ))
     db.commit()
     db.close()
@@ -67,6 +71,8 @@ def playerStandings():
         wins: the number of matches the player has won
         matches: the number of matches the player has played
     """
+    # Two left joins to get winners and losers as aggregate values. Then a
+    # subquery in order to get total games rather than losses.
     query = """select id, name, wins, wins + losses as total from
                    (select players.id,
                     players.name,
@@ -97,11 +103,14 @@ def reportMatch(winner, loser):
     if (winner != loser):
         db = connect()
         cursor = db.cursor()
+        # Avoid sql injection by passing arguments to the .execute() function
+        # rather than using string interpolation or the like.
         cursor.execute("insert into matches (winner, loser) values (%s, %s)",
                        (winner, loser))
         db.commit()
         db.close()
     else:
+        # Handle case of person playing him/her self.
         raise ValueError("Winner cannot be the same as loser")
 
 
@@ -121,9 +130,19 @@ def swissPairings():
         name2: the second player's name
     """
     standings = playerStandings()
+
+    # Prepend a winning percentage to each player. Then sort on that
+    # percentage. Although this involves sorting outside of the database, it
+    # would be quite complicated to implement an in-database recomputation of
+    # winning percentages each time playerStandings() is run.
     sort = sorted(
         [[float(s[2]) / s[3], s[0], s[1]] for s in standings],
         reverse=True)
+
+    # Now partition by twos the results of the games. If we were going to do an
+    # odd number of players, we could assign a bye at random or to the first or
+    # last player in the sorted list, removing them from the list and running
+    # this same code.
     results = []
     for i in range(0, len(sort), 2):
         results.append((sort[i][1], sort[i][2], sort[i + 1][1], sort[i + 1][2]

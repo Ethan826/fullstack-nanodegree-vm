@@ -6,4 +6,16 @@
 -- You can write comments in this file by starting them with two dashes, like
 -- these lines here.
 
+create database tournament;
 
+create table players (
+       id serial primary key,
+       name text not null
+);
+
+create table matches (
+       id serial primary key,
+       round int not null,
+       winner int references players(id),
+       loser int references players(id)
+);

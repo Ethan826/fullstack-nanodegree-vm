@@ -8,13 +8,17 @@ from random import randint
 
 def connect():
     """Connect to the PostgreSQL database.  Returns a database connection."""
-    return psycopg2.connect("dbname=tournament")
+    try:
+        db = psycopg2.connect("dbname=tournament")
+        cursor = db.cursor()
+        return db, cursor
+    except:
+        print("Error connecting to database.")
 
 
 def deleteMatches():
     """Remove all the match records from the database."""
-    db = connect()
-    cursor = db.cursor()
+    db, cursor = connect()
     cursor.execute("truncate matches cascade;")
     db.commit()
     db.close()
@@ -22,8 +26,7 @@ def deleteMatches():
 
 def deletePlayers():
     """Remove all the player records from the database."""
-    db = connect()
-    cursor = db.cursor()
+    db, cursor = connect()
     # Use cascade to remove matches in which the players participated.
     cursor.execute("truncate players cascade;")
     db.commit()
@@ -32,12 +35,12 @@ def deletePlayers():
 
 def countPlayers():
     """Returns the number of players currently registered."""
-    db = connect()
-    cursor = db.cursor()
+    db, cursor = connect()
     cursor.execute("select count(*) from players;")
-    # count(*) will return only one number, so fetchone() is appropriate.
-    return cursor.fetchone()[0]
+    result = cursor.fetchone()[0]
     db.close()
+    # count(*) will return only one number, so fetchone() is appropriate.
+    return result
 
 
 def registerPlayer(name):
@@ -51,8 +54,7 @@ def registerPlayer(name):
     """
     # Avoid script injection.
     name = bleach.clean(name)
-    db = connect()
-    cursor = db.cursor()
+    db, cursor = connect()
     # Avoid sql injection.
     cursor.execute("insert into players (name) values (%s)", (name, ))
     db.commit()
@@ -72,8 +74,7 @@ def playerStandings():
         wins: the number of matches the player has won
         matches: the number of matches the player has played
     """
-    db = connect()
-    cursor = db.cursor()
+    db, cursor = connect()
     cursor.execute("select * from wins_total;")
     results = cursor.fetchall()
     db.close()
@@ -88,8 +89,7 @@ def reportMatch(winner, loser):
       loser:  the id number of the player who lost
     """
     if (winner != loser):
-        db = connect()
-        cursor = db.cursor()
+        db, cursor = connect()
         # Avoid sql injection by passing arguments to the .execute() function
         # rather than using string interpolation or the like.
         cursor.execute("insert into matches (winner, loser) values (%s, %s)",
@@ -117,8 +117,10 @@ def handleBye(standings):
     # randint includes the top number
     luckyId = noByeList[randint(0, len(noByeList) - 1)][0]
     # Give a win by inserting dummy game with opponent 0.
-    cursor.execute("insert into matches (winner, loser) values (%s, 0)", (luckyId, ))
-    cursor.execute("update players set had_bye = true where id = %s", (luckyId,))
+    cursor.execute("insert into matches (winner, loser) values (%s, 0)",
+                   (luckyId, ))
+    cursor.execute("update players set had_bye = true where id = %s",
+                   (luckyId, ))
     db.commit()
     db.close()
     index = [i[0] for i in standings].index(luckyId)

@@ -1,6 +1,11 @@
 -- Table definitions for the tournament project.
 
--- Reset
+-- Reset (from here http://bit.ly/1XntaJI)
+select pg_terminate_backend(pg_stat_activity.pid)
+    from pg_stat_activity
+    where pg_stat_activity.datname = 'tournament'
+    and pid <> pg_backend_pid();
+
 drop database tournament;
 
 create database tournament;
@@ -15,8 +20,9 @@ create table players (
 
 create table matches (
     id serial primary key,
-    winner int references players(id),
-    loser int references players(id)
+    winner int references players(id) on delete cascade,
+    loser int references players(id) on delete cascade
+    check (winner <> loser)
 );
 
 -- Used in the bye scenario

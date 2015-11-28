@@ -49,7 +49,7 @@ def registerPlayer(name):
     name = bleach.clean(name)
     db = connect()
     cursor = db.cursor()
-    cursor.execute("insert into players (name) values (%s)", (name,))
+    cursor.execute("insert into players (name) values (%s)", (name, ))
     db.commit()
     db.close()
 
@@ -67,6 +67,24 @@ def playerStandings():
         wins: the number of matches the player has won
         matches: the number of matches the player has played
     """
+    query = """select id, name, wins, wins + losses as total from
+                   (select players.id,
+                    players.name,
+                    count(W.winner) as wins,
+                    count(L.loser) as losses
+                    from
+                    players
+                    left join matches W on W.winner = players.id
+                    left join matches L on L.loser = players.id
+                    group by players.id
+                    order by wins desc) as sub;"""
+
+    db = connect()
+    cursor = db.cursor()
+    cursor.execute(query)
+    results = cursor.fetchall()
+    db.close()
+    return results
 
 
 def reportMatch(winner, loser):
@@ -76,6 +94,15 @@ def reportMatch(winner, loser):
       winner:  the id number of the player who won
       loser:  the id number of the player who lost
     """
+    if (winner != loser):
+        db = connect()
+        cursor = db.cursor()
+        cursor.execute("insert into matches (winner, loser) values (%s, %s)",
+                       (winner, loser))
+        db.commit()
+        db.close()
+    else:
+        raise ValueError("Winner cannot be the same as loser")
 
 
 def swissPairings():
@@ -93,3 +120,12 @@ def swissPairings():
         id2: the second player's unique id
         name2: the second player's name
     """
+    standings = playerStandings()
+    sort = sorted(
+        [[float(s[2]) / s[3], s[0], s[1]] for s in standings],
+        reverse=True)
+    results = []
+    for i in range(0, len(sort), 2):
+        results.append((sort[i][1], sort[i][2], sort[i + 1][1], sort[i + 1][2]
+                        ))
+    return results

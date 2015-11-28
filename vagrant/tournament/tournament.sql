@@ -15,7 +15,6 @@ create table players (
 
 create table matches (
        id serial primary key,
-       round int not null,
        winner int references players(id),
        loser int references players(id)
 );
